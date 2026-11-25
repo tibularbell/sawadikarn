@@ -7,6 +7,7 @@ import {
   medicalClaims,
   staffDependents,
   staffProfiles,
+  users,
 } from './schema.ts';
 import { bahtText, getThaiFiscalYear } from '../lib/thai-utils.ts';
 
@@ -1473,3 +1474,96 @@ export async function seedSamplePublicHealthData(userId: number) {
     throw new Error('ไม่สามารถนำเข้าข้อมูลตัวอย่างได้', { cause: error });
   }
 }
+
+export async function exportUserDatabaseBackup(userId: number, fiscalYear?: string) {
+  try {
+    const userRows = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId));
+
+    const staffRows = await db
+      .select()
+      .from(staffProfiles)
+      .where(eq(staffProfiles.userId, userId))
+      .orderBy(asc(staffProfiles.id));
+
+    const staffIds = staffRows.map((s) => s.id);
+    const dependentRows =
+      staffIds.length > 0
+        ? await db
+            .select()
+            .from(staffDependents)
+            .where(
+              sql`${staffDependents.staffId} IN (${sql.join(
+                staffIds.map((id) => sql`${id}`),
+                sql`, `
+              )})`
+            )
+            .orderBy(asc(staffDependents.id))
+        : [];
+
+    const medConditions = [eq(medicalClaims.userId, userId)];
+    const eduConditions = [eq(educationClaims.userId, userId)];
+    if (fiscalYear && fiscalYear !== 'all') {
+      medConditions.push(eq(medicalClaims.fiscalYear, fiscalYear));
+      eduConditions.push(eq(educationClaims.fiscalYear, fiscalYear));
+    }
+
+    const medicalClaimRows = await db
+      .select()
+      .from(medicalClaims)
+      .where(and(...medConditions))
+      .orderBy(asc(medicalClaims.id));
+
+    const medIds = medicalClaimRows.map((c) => c.id);
+    const receiptRows =
+      medIds.length > 0
+        ? await db
+            .select()
+            .from(claimReceipts)
+            .where(
+              sql`${claimReceipts.claimId} IN (${sql.join(
+                medIds.map((id) => sql`${id}`),
+                sql`, `
+              )})`
+            )
+            .orderBy(asc(claimReceipts.id))
+        : [];
+
+    const educationClaimRows = await db
+      .select()
+      .from(educationClaims)
+      .where(and(...eduConditions))
+      .orderBy(asc(educationClaims.id));
+
+    const eduIds = educationClaimRows.map((e) => e.id);
+    const educationChildRows =
+      eduIds.length > 0
+        ? await db
+            .select()
+            .from(educationClaimChildren)
+            .where(
+              sql`${educationClaimChildren.educationClaimId} IN (${sql.join(
+                eduIds.map((id) => sql`${id}`),
+                sql`, `
+              )})`
+            )
+            .orderBy(asc(educationClaimChildren.id))
+        : [];
+
+    return {
+      users: userRows,
+      staff_profiles: staffRows,
+      staff_dependents: dependentRows,
+      medical_claims: medicalClaimRows,
+      claim_receipts: receiptRows,
+      education_claims: educationClaimRows,
+      education_claim_children: educationChildRows,
+    };
+  } catch (error) {
+    console.error('Database query failed in exportUserDatabaseBackup:', error);
+    throw new Error('ไม่สามารถส่งออกไฟล์สำรองข้อมูลได้', { cause: error });
+  }
+}
+

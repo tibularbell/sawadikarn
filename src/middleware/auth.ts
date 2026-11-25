@@ -11,6 +11,12 @@ export interface AuthRequest extends Request {
     email: string;
     displayName: string | null;
     role: string;
+    googleSpreadsheetId: string | null;
+    googleSpreadsheetTitle: string | null;
+    googleSpreadsheetUrl: string | null;
+    lastSheetSyncAt: string | null;
+    lastSheetSyncStatus: string | null;
+    lastSheetSyncError: string | null;
   };
 }
 

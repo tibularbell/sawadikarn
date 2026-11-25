@@ -1,8 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
+  ChevronDown,
   Clock,
+  Database,
   Download,
+  FileSpreadsheet,
   FileText,
   GraduationCap,
   Plus,
@@ -31,9 +34,19 @@ interface Props {
   onPrintClaim: (claim: MedicalClaim) => void;
   onPrintEducationClaim: (claim: EducationClaim) => void;
   onSeedDemo: () => Promise<void>;
+  onDownloadBackup: (format: 'sql' | 'csv', table?: string) => Promise<void>;
   seeding: boolean;
   loading: boolean;
 }
+
+const BACKUP_TABLE_OPTIONS = [
+  { key: 'staff_profiles', label: 'ทะเบียนเจ้าหน้าที่' },
+  { key: 'staff_dependents', label: 'บุคคลในครอบครัว' },
+  { key: 'medical_claims', label: 'ใบเบิก แบบ 7131' },
+  { key: 'claim_receipts', label: 'ใบเสร็จ แบบ 7131' },
+  { key: 'education_claims', label: 'ใบเบิก แบบ 7223' },
+  { key: 'education_claim_children', label: 'รายการบุตร แบบ 7223' },
+];
 
 export function DashboardReportsView({
   analytics,
@@ -46,11 +59,43 @@ export function DashboardReportsView({
   onPrintClaim,
   onPrintEducationClaim,
   onSeedDemo,
+  onDownloadBackup,
   seeding,
   loading,
 }: Props) {
   const [reportScope, setReportScope] = useState<'7131' | '7223'>('7131');
   const [showAnnualPrint, setShowAnnualPrint] = useState(false);
+  const [backupMenuOpen, setBackupMenuOpen] = useState(false);
+  const [downloadingBackup, setDownloadingBackup] = useState(false);
+  const backupMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!backupMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (backupMenuRef.current && !backupMenuRef.current.contains(e.target as Node)) {
+        setBackupMenuOpen(false);
+      }
+    };
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setBackupMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEsc);
+    };
+  }, [backupMenuOpen]);
+
+  const triggerBackupDownload = async (format: 'sql' | 'csv', table = 'all') => {
+    setDownloadingBackup(true);
+    try {
+      await onDownloadBackup(format, table);
+      setBackupMenuOpen(false);
+    } finally {
+      setDownloadingBackup(false);
+    }
+  };
 
   const categoryRows = useMemo(() => {
     if (!analytics) return [];
@@ -340,6 +385,98 @@ export function DashboardReportsView({
             <Download className="w-3.5 h-3.5" />
             ส่งออก CSV ({reportScope})
           </button>
+
+          {/* Annual Database Backup Menu (SQL Dump / CSV) */}
+          <div className="relative" ref={backupMenuRef}>
+            <button
+              type="button"
+              disabled={downloadingBackup}
+              onClick={() => setBackupMenuOpen((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-60 text-slate-700 text-xs font-medium rounded-lg transition-colors whitespace-nowrap"
+            >
+              <Database className="w-3.5 h-3.5 text-teal-700" />
+              <span>{downloadingBackup ? 'กำลังส่งออก...' : 'สำรองข้อมูลประจำปี'}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+
+            {backupMenuOpen && (
+              <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl p-3.5 z-30">
+                <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-slate-100">
+                  <div>
+                    <div className="text-xs font-semibold text-slate-900">
+                      สำรองฐานข้อมูลประจำปี
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      ขอบเขต:{' '}
+                      {selectedYear === 'all'
+                        ? 'ทุกปีงบประมาณ'
+                        : `ปีงบประมาณ พ.ศ. ${selectedYear}`}
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-teal-50 text-teal-800">
+                    7 ตารางหลัก
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    disabled={downloadingBackup}
+                    onClick={() => triggerBackupDownload('sql', 'all')}
+                    className="w-full flex items-start gap-2.5 p-2.5 rounded-lg border border-slate-200 hover:border-teal-600 hover:bg-teal-50/40 text-left transition-colors"
+                  >
+                    <Database className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-slate-900">
+                        ดาวน์โหลด SQL Dump (.sql)
+                      </div>
+                      <div className="text-[11px] text-slate-500 leading-snug">
+                        โครงสร้างตาราง + คำสั่ง INSERT PostgreSQL ทั้งหมด
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={downloadingBackup}
+                    onClick={() => triggerBackupDownload('csv', 'all')}
+                    className="w-full flex items-start gap-2.5 p-2.5 rounded-lg border border-slate-200 hover:border-teal-600 hover:bg-teal-50/40 text-left transition-colors"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-slate-900">
+                        ดาวน์โหลด CSV รวมทุกตาราง (.csv)
+                      </div>
+                      <div className="text-[11px] text-slate-500 leading-snug">
+                        ข้อมูลทั้ง 7 ตารางในไฟล์เดียว (รองรับ Excel ภาษาไทย)
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-slate-100">
+                  <div className="text-[11px] font-medium text-slate-500 mb-1.5">
+                    หรือดาวน์โหลด CSV แยกรายตาราง
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {BACKUP_TABLE_OPTIONS.map((tbl) => (
+                      <button
+                        key={tbl.key}
+                        type="button"
+                        disabled={downloadingBackup}
+                        onClick={() => triggerBackupDownload('csv', tbl.key)}
+                        className="px-2 py-1.5 text-[11px] text-left text-slate-700 bg-slate-50 hover:bg-slate-100 rounded-md truncate transition-colors"
+                        title={`ดาวน์โหลด ${tbl.key}.csv`}
+                      >
+                        {tbl.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             onClick={() => setShowAnnualPrint(true)}

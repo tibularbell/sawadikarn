@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as dotenv from 'dotenv';
 import { requireAuth, type AuthRequest } from './src/middleware/auth.ts';
+import { updateUserSheetSyncState } from './src/db/users.ts';
 import {
   addStaffDependent,
   createEducationClaim,
@@ -12,6 +13,7 @@ import {
   deleteMedicalClaim,
   deleteStaffDependent,
   deleteStaffProfile,
+  exportUserDatabaseBackup,
   getEducationClaimById,
   getMedicalClaimById,
   getReportAnalytics,
@@ -25,6 +27,12 @@ import {
   updateMedicalClaimStatus,
   updateStaffProfile,
 } from './src/db/repository.ts';
+import {
+  buildBackupCsv,
+  buildPostgresSqlDump,
+  isValidBackupTable,
+  type BackupTableName,
+} from './src/lib/backup-serializer.ts';
 
 dotenv.config();
 
@@ -43,6 +51,32 @@ async function startServer() {
 
   app.get('/api/me', requireAuth, (req: AuthRequest, res) => {
     res.json({ user: req.dbUser });
+  });
+
+  app.patch('/api/sheets/status', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const {
+        googleSpreadsheetId,
+        googleSpreadsheetTitle,
+        googleSpreadsheetUrl,
+        lastSheetSyncAt,
+        lastSheetSyncStatus,
+        lastSheetSyncError,
+      } = req.body || {};
+
+      const updated = await updateUserSheetSyncState(req.dbUser!.id, {
+        googleSpreadsheetId,
+        googleSpreadsheetTitle,
+        googleSpreadsheetUrl,
+        lastSheetSyncAt,
+        lastSheetSyncStatus,
+        lastSheetSyncError,
+      });
+
+      res.json({ user: updated });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'ไม่สามารถบันทึกสถานะการซิงค์ได้' });
+    }
   });
 
   app.post('/api/seed-demo', requireAuth, async (req: AuthRequest, res) => {
@@ -356,6 +390,40 @@ async function startServer() {
       res.json(report);
     } catch (error: any) {
       res.status(500).json({ error: error.message || 'ไม่สามารถสร้างรายงานสรุปได้' });
+    }
+  });
+
+  // Annual Database Backup Export route (SQL Dump / CSV)
+  app.get('/api/backup/export', requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const format = req.query.format === 'csv' ? 'csv' : 'sql';
+      const fiscalYear = (req.query.fiscalYear as string | undefined) || 'all';
+      const requestedTable = (req.query.table as string | undefined) || 'all';
+
+      const backup = await exportUserDatabaseBackup(req.dbUser!.id, fiscalYear);
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      const yearSuffix = fiscalYear && fiscalYear !== 'all' ? `FY${fiscalYear}` : 'ALL';
+
+      if (format === 'sql') {
+        const sqlDump = buildPostgresSqlDump(backup, fiscalYear);
+        const filename = `donphut_welfare_backup_${yearSuffix}_${dateStamp}.sql`;
+        res.setHeader('Content-Type', 'application/sql; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(sqlDump);
+      }
+
+      const tableKey: BackupTableName | 'all' =
+        requestedTable !== 'all' && isValidBackupTable(requestedTable)
+          ? requestedTable
+          : 'all';
+      const csvContent = buildBackupCsv(backup, tableKey);
+      const tableSuffix = tableKey === 'all' ? 'all_tables' : tableKey;
+      const filename = `donphut_welfare_${tableSuffix}_${yearSuffix}_${dateStamp}.csv`;
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(csvContent);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message || 'ไม่สามารถส่งออกข้อมูลสำรองได้' });
     }
   });
 

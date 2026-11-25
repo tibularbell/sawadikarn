@@ -26,6 +26,9 @@ import { Form7131PrintModal } from './components/Form7131PrintModal';
 import { EducationClaimsRegistryView } from './components/EducationClaimsRegistryView';
 import { EducationClaimForm7223Editor } from './components/EducationClaimForm7223Editor';
 import { Form7223PrintModal } from './components/Form7223PrintModal';
+import { ClaimDetailModal } from './components/ClaimDetailModal';
+import { EducationClaimDetailModal } from './components/EducationClaimDetailModal';
+import { GoogleSheetsStatusBar } from './components/GoogleSheetsStatusBar';
 
 type ActiveTab =
   | 'dashboard'
@@ -39,11 +42,16 @@ function WorkspaceApp() {
   const {
     firebaseUser,
     dbUser,
+    workspaceAccessToken,
     loading: authLoading,
     authError,
     signInWithGoogle,
+    connectGoogleSheets,
+    clearWorkspaceAccessToken,
+    updateSheetSyncState,
     signOut,
     apiFetch,
+    apiDownload,
   } = useAuth();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -60,9 +68,11 @@ function WorkspaceApp() {
   const [seeding, setSeeding] = useState(false);
 
   const [editingClaim, setEditingClaim] = useState<MedicalClaim | null>(null);
+  const [detailClaim, setDetailClaim] = useState<MedicalClaim | null>(null);
   const [printingClaim, setPrintingClaim] = useState<MedicalClaim | null>(null);
 
   const [editingEduClaim, setEditingEduClaim] = useState<EducationClaim | null>(null);
+  const [detailEduClaim, setDetailEduClaim] = useState<EducationClaim | null>(null);
   const [printingEduClaim, setPrintingEduClaim] = useState<EducationClaim | null>(null);
 
   const loadWorkspaceData = useCallback(
@@ -108,6 +118,24 @@ function WorkspaceApp() {
       setDataError(err?.message || 'ไม่สามารถนำเข้าข้อมูลตัวอย่างได้');
     } finally {
       setSeeding(false);
+    }
+  };
+
+  const handleDownloadBackup = async (format: 'sql' | 'csv', table = 'all') => {
+    setDataError(null);
+    try {
+      const params = new URLSearchParams({
+        format,
+        fiscalYear: selectedYear,
+        table,
+      });
+      const fallbackExt = format === 'sql' ? 'sql' : 'csv';
+      await apiDownload(
+        `/api/backup/export?${params.toString()}`,
+        `donphut_welfare_backup_${selectedYear}.${fallbackExt}`
+      );
+    } catch (err: any) {
+      setDataError(err?.message || 'ไม่สามารถดาวน์โหลดไฟล์สำรองข้อมูลได้');
     }
   };
 
@@ -269,27 +297,27 @@ function WorkspaceApp() {
               <button
                 type="button"
                 onClick={signInWithGoogle}
-                className="inline-flex items-center justify-center gap-3 w-full sm:w-auto px-6 py-3 bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold rounded-xl transition-colors"
+                className="inline-flex items-center justify-center gap-3 w-full sm:w-auto px-5 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 text-sm font-medium rounded-lg shadow-xs transition-colors"
               >
-                <svg className="w-4 h-4 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 48 48">
                   <path
-                    fill="#4285F4"
-                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+                    fill="#EA4335"
+                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
                   />
                   <path
-                    fill="#34A853"
-                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"
+                    fill="#4285F4"
+                    d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
                   />
                   <path
                     fill="#FBBC05"
-                    d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"
+                    d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
                   />
                   <path
-                    fill="#EA4335"
-                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
+                    fill="#34A853"
+                    d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
                   />
                 </svg>
-                เข้าสู่ระบบด้วยบัญชี Google
+                <span>Sign in with Google · เข้าสู่ระบบด้วย Google</span>
               </button>
             </div>
           </div>
@@ -518,6 +546,17 @@ function WorkspaceApp() {
           </div>
         </header>
 
+        <GoogleSheetsStatusBar
+          dbUser={dbUser}
+          workspaceAccessToken={workspaceAccessToken}
+          staffList={staffList}
+          claims={claims}
+          educationClaims={educationClaims}
+          onConnectSheets={connectGoogleSheets}
+          onClearToken={clearWorkspaceAccessToken}
+          onUpdateSyncState={updateSheetSyncState}
+        />
+
         <main className="no-print flex-1 p-5 sm:p-8 max-w-7xl w-full mx-auto">
           {dataError && (
             <div className="mb-5 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-xs flex items-center justify-between gap-4">
@@ -550,6 +589,7 @@ function WorkspaceApp() {
               onPrintClaim={(claim) => setPrintingClaim(claim)}
               onPrintEducationClaim={(claim) => setPrintingEduClaim(claim)}
               onSeedDemo={handleSeedDemo}
+              onDownloadBackup={handleDownloadBackup}
               seeding={seeding}
               loading={dataLoading}
             />
@@ -562,6 +602,7 @@ function WorkspaceApp() {
                 setEditingClaim(null);
                 setActiveTab('new_claim');
               }}
+              onViewDetail={(claim) => setDetailClaim(claim)}
               onEditClaim={(claim) => {
                 setEditingClaim(claim);
                 setActiveTab('new_claim');
@@ -592,6 +633,7 @@ function WorkspaceApp() {
                 setEditingEduClaim(null);
                 setActiveTab('new_edu_claim');
               }}
+              onViewDetail={(claim) => setDetailEduClaim(claim)}
               onEditClaim={(claim) => {
                 setEditingEduClaim(claim);
                 setActiveTab('new_edu_claim');
@@ -627,6 +669,38 @@ function WorkspaceApp() {
           )}
         </main>
       </div>
+
+      {detailClaim && (
+        <ClaimDetailModal
+          claim={detailClaim}
+          onClose={() => setDetailClaim(null)}
+          onEdit={(claim) => {
+            setDetailClaim(null);
+            setEditingClaim(claim);
+            setActiveTab('new_claim');
+          }}
+          onOpenOfficialForm={(claim) => {
+            setDetailClaim(null);
+            setPrintingClaim(claim);
+          }}
+        />
+      )}
+
+      {detailEduClaim && (
+        <EducationClaimDetailModal
+          claim={detailEduClaim}
+          onClose={() => setDetailEduClaim(null)}
+          onEdit={(claim) => {
+            setDetailEduClaim(null);
+            setEditingEduClaim(claim);
+            setActiveTab('new_edu_claim');
+          }}
+          onOpenOfficialForm={(claim) => {
+            setDetailEduClaim(null);
+            setPrintingEduClaim(claim);
+          }}
+        />
+      )}
 
       {printingClaim && (
         <Form7131PrintModal

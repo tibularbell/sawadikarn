@@ -33,9 +33,14 @@
     margin: 12mm 14mm;
   }
 
+  html,
   body {
     background: #ffffff !important;
     color: #000000 !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .no-print {
@@ -44,8 +49,12 @@
 
   .print-only-container {
     position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
     overflow: visible !important;
     background: #ffffff !important;
+    backdrop-filter: none !important;
     padding: 0 !important;
     margin: 0 !important;
     box-shadow: none !important;
@@ -58,6 +67,26 @@
     padding: 0 !important;
     width: 100% !important;
     max-width: none !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .page-break-before {

@@ -16,6 +16,12 @@ export const users = pgTable('users', {
   email: text('email').notNull(),
   displayName: text('display_name').default(''),
   role: text('role').notNull().default('staff'),
+  googleSpreadsheetId: text('google_spreadsheet_id').default(''),
+  googleSpreadsheetTitle: text('google_spreadsheet_title').default(''),
+  googleSpreadsheetUrl: text('google_spreadsheet_url').default(''),
+  lastSheetSyncAt: text('last_sheet_sync_at').default(''),
+  lastSheetSyncStatus: text('last_sheet_sync_status').default('idle'),
+  lastSheetSyncError: text('last_sheet_sync_error').default(''),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

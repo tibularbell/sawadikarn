@@ -4,6 +4,12 @@ export interface UserProfile {
   email: string;
   displayName: string | null;
   role: string;
+  googleSpreadsheetId?: string | null;
+  googleSpreadsheetTitle?: string | null;
+  googleSpreadsheetUrl?: string | null;
+  lastSheetSyncAt?: string | null;
+  lastSheetSyncStatus?: 'idle' | 'success' | 'error' | string | null;
+  lastSheetSyncError?: string | null;
 }
 
 export interface StaffDependent {

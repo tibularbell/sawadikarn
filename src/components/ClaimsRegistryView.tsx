@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   CheckSquare,
   Edit3,
+  Eye,
   Plus,
   Printer,
   Search,
@@ -20,6 +21,7 @@ import { StatusText } from './DashboardReportsView';
 interface Props {
   claims: MedicalClaim[];
   onCreateNew: () => void;
+  onViewDetail: (claim: MedicalClaim) => void;
   onEditClaim: (claim: MedicalClaim) => void;
   onPrintClaim: (claim: MedicalClaim) => void;
   onDeleteClaim: (claimId: number) => Promise<void>;
@@ -46,6 +48,7 @@ const FILTER_TABS = [
 export function ClaimsRegistryView({
   claims,
   onCreateNew,
+  onViewDetail,
   onEditClaim,
   onPrintClaim,
   onDeleteClaim,
@@ -195,7 +198,13 @@ export function ClaimsRegistryView({
                 {filteredClaims.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/70">
                     <td className="px-4 py-3 font-mono-nums font-semibold text-slate-900 whitespace-nowrap">
-                      <div>{c.claimNumber}</div>
+                      <button
+                        type="button"
+                        onClick={() => onViewDetail(c)}
+                        className="text-teal-800 hover:text-teal-600 hover:underline text-left"
+                      >
+                        {c.claimNumber}
+                      </button>
                       <div className="text-[11px] font-normal text-slate-500">
                         ปีงบฯ {c.fiscalYear} · {c.receiptCount} ใบเสร็จ
                       </div>
@@ -238,6 +247,14 @@ export function ClaimsRegistryView({
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onViewDetail(c)}
+                          title="ดูรายละเอียด / Print to PDF"
+                          className="p-1.5 text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => onPrintClaim(c)}

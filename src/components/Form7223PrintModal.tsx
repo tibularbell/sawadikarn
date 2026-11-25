@@ -80,7 +80,7 @@ export function Form7223PrintModal({ claim, onClose }: Props) {
               className="inline-flex items-center gap-2 px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white text-xs font-medium rounded-lg transition-colors whitespace-nowrap"
             >
               <Printer className="w-4 h-4" />
-              พิมพ์แบบ 7223 / บันทึก PDF
+              Print to PDF / พิมพ์แบบ 7223
             </button>
             <button
               type="button"
